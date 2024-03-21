@@ -1,5 +1,5 @@
 <template>
-  <VScaleScreen height="1080" width="1920">
+  <VScaleScreen height="900" width="1600">
     <div class="all-charts">
       <div class="section-one">
         <img
@@ -63,143 +63,128 @@
         <div class="pie-chart" id="pieChart"></div>
       </div>
     </div>
+    <div class="model-container">
+      <LoadingComponent :loading="loadStatus"></LoadingComponent>
+      <canvas class="canvas-3d" ref="ref3d"></canvas>
+      <div
+        v-if="modelStatus"
+        id="t"
+        :class="{ animate__zoomIn: modelStatus }"
+        :style="{ left: x + 'px', top: y + 'px' }"
+        class="tip animate__animated"
+      >
+        <span class="close" @mousedown.stop="close"></span>
+        <div class="header">{{ buildingInfo?.name }}</div>
+      </div>
+    </div>
   </VScaleScreen>
 </template>
 <script setup>
-import { getParkInfoApi } from '@/api/park.js'
-import { ref, onMounted } from 'vue'
-import * as echarts from 'echarts'
+import { ref, onMounted, computed } from 'vue'
 
 import VScaleScreen from 'v-scale-screen'
+import { useParkInfo, useInitBarChart, useInitPieChart } from './BigScreen/composables/index'
 
-const parkInfo = ref({})
-const getParkInfo = async () => {
+import { Application } from '@splinetool/runtime'
+
+import LoadingComponent from '../components/LoadingComponent.vue'
+
+import { getAreaInfoApi, getBuildingInfoApi } from '../api/park'
+
+const { parkInfo, getParkInfo } = useParkInfo()
+const { initBarChart } = useInitBarChart(parkInfo)
+const { initPieChart } = useInitPieChart(parkInfo)
+
+const ref3d = ref(null)
+const loadStatus = ref(false)
+// const modelId = ref()
+const showModel = ref(false)
+let x = ref()
+let y = ref()
+const buildingInfo = ref()
+const areaInfo = ref()
+
+const init3dModel = () => {
+  // 实例化模型加载器以及指定渲染dom
+  loadStatus.value = true
+  const spline = new Application(ref3d.value)
+  spline.load('https://fe-hmzs.itheima.net/scene.splinecode').then(() => {
+    loadStatus.value = false
+
+    spline.addEventListener('mouseDown', (e) => {
+      x.value = ''
+      y.value = ''
+      // 坐标 没有
+      console.log('e', e)
+      // {name : '' , id : ''}
+      const params = e.target
+
+      // const obj = spline.findObjectByName(params.name)
+
+      console.log('obj', params)
+      if (params.name.indexOf('办公楼') !== -1) {
+        console.log('楼宇')
+        console.log('--->', params.id)
+        getBuildingInfo(params.id)
+        window.addEventListener('mousedown', (e) => {
+          x.value = e.offsetX
+          y.value = e.offsetY
+        })
+      } else if (params.name.indexOf('停车场') !== -1) {
+        console.log('停车场')
+        getAreaInfo(params.id)
+        x.value = posi.value.x
+        y.value = posi.value.y
+        window.addEventListener('mousedown', (e) => {
+          x.value = e.offsetX
+          y.value = e.offsetY
+        })
+      }
+      showModel.value = true
+    })
+  })
+}
+
+const getBuildingInfo = async (id) => {
   try {
-    // const {
-    //   data: { base, parkIncome, parkIndustry }
-    // } = await getParkInfoApi()
-    const res = await getParkInfoApi()
-    parkInfo.value = res.data
-    // console.log('base', base)
-    // console.log('parkIncome', parkIncome)
-    // console.log('parkIndustry', parkIndustry)
-  } catch (error) {
-    console.log(error)
+    const res = await getBuildingInfoApi(id)
+    console.log('res', res)
+    buildingInfo.value = res.data
+  } catch (e) {
+    console.log(e)
   }
 }
 
-const initBarChart = () => {
-  const { parkIncome } = parkInfo.value
-  const option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    grid: {
-      top: '10px',
-      bottom: '0',
-      left: '0',
-      right: '0',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: parkIncome?.xMonth
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        data: parkIncome?.yIncome.map((item, index) => {
-          let color = ''
-          if (index % 2 === 0) {
-            color = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0.23, color: '#74c0f8' },
-              { offset: 1, color: 'rgba(116,192,248,0.00)' }
-            ])
-          } else {
-            color = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0.23, color: '#ff7152' },
-              { offset: 1, color: 'rgba(255,113,82,0.00)' }
-            ])
-          }
-          return {
-            value: item,
-            itemStyle: {
-              color: color
-            }
-          }
-        }),
-        type: 'bar',
-        barWidth: '40%'
-      }
-    ]
+const getAreaInfo = async (id) => {
+  try {
+    const res = await getAreaInfoApi(id)
+    console.log('area', res)
+    areaInfo.value = res.data
+  } catch (e) {
+    console.log(e)
   }
-  const myChart = echarts.init(document.getElementById('barChart'))
-  option && myChart.setOption(option)
 }
-const initPieChart = () => {
-  const { parkIndustry } = parkInfo.value
 
-  const option = {
-    color: ['#00B2FF', '#2CF2FF', '#892CFF', '#FF624D', '#FFCF54', '#86ECA2'],
-    tooltip: {
-      trigger: 'item'
-    },
-    legend: {
-      // top: '5%',
-      left: 'center',
-      bottom: '0',
-      icon: 'rect',
-      itemWidth: 10,
-      itemHeight: 10,
-      textStyle: {
-        color: '#c6d1db'
-      }
-    },
-    series: [
-      {
-        name: '园区产业分析',
-        type: 'pie',
-        radius: ['55%', '60%'],
-        avoidLabelOverlap: false,
-        center: ['50%', '40%'],
-        label: {
-          show: false,
-          position: 'center'
-        },
-        tooltip: {
-          trigger: 'item',
-          formatter: function (params) {
-            return `${params.seriesName} <br/>${params.marker}  ${params.name} ${params.percent}%`
-          }
-        },
-        emphasis: {
-          label: {
-            show: false,
-            fontSize: 40,
-            fontWeight: 'bold'
-          }
-        },
-        labelLine: {
-          show: false
-        },
-        data: parkIndustry
-      }
-    ]
+const modelStatus = computed(() => {
+  if (x.value && y.value) {
+    return true
+  } else {
+    return false
   }
+})
 
-  const myChart = echarts.init(document.getElementById('pieChart'))
+const close = () => {
+  x.value = ''
+  y.value = ''
 
-  option && myChart.setOption(option)
+  console.log(x.value, y.value)
 }
+
 onMounted(async () => {
   await getParkInfo()
   initBarChart()
   initPieChart()
+  init3dModel()
 })
 </script>
 <style lang="scss" scoped>
@@ -306,6 +291,7 @@ onMounted(async () => {
     }
   }
   .bar-chart {
+    width: 100%;
     height: calc(100% - 30px);
   }
 }
@@ -317,6 +303,34 @@ onMounted(async () => {
     margin: 0 auto;
     padding-bottom: 20px;
     width: 80%;
+  }
+}
+.model-container {
+  width: 100%;
+  height: 100%;
+  background: black;
+
+  .tip {
+    width: 281px;
+    height: 140px;
+    background: url('@/assets/modal-bg.png') no-repeat;
+    background-size: cover;
+    color: #fff;
+    //display: none;
+    position: absolute;
+    //left: 0;
+    //top: 0;
+
+    .close {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      width: 20px;
+      height: 20px;
+      background: url('@/assets/modal-close.png') no-repeat;
+      background-size: cover;
+      cursor: pointer;
+    }
   }
 }
 </style>
