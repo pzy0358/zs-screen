@@ -1,13 +1,33 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './styles/index.scss'
+import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 
 import App from './App.vue'
 import router from './router'
 
-const app = createApp(App)
+renderWithQiankun({
+  // 挂载时
+  mount(props) {
+    console.log('mount')
+    render(props)
+  },
+  bootstrap() {
+    console.log('bootstrap')
+  },
+  unmount(props) {
+    console.log('unmount', props)
+  }
+})
 
-app.use(createPinia())
-app.use(router)
+if (!qiankunWindow.__POWERED_BY_QIANKUN__) {
+  render({})
+}
 
-app.mount('#app')
+function render(props = {}) {
+  const { container } = props
+  const app = createApp(App)
+  app.use(createPinia())
+  app.use(router)
+  app.mount(container ? container.querySelector('#app') : '#app')
+}
